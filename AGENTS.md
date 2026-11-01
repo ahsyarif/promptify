@@ -18,6 +18,7 @@ Go + PostgreSQL + htmx prompt library. See README.md for the feature overview.
 - Search uses `store.PrefixTSQuery`, which strips everything except letters and digits. Keep user input out of raw tsquery syntax.
 - Uploaded images get random names. Their type comes from file content (`http.DetectContentType`). Clean up the file whenever the DB write fails or the image is replaced or removed.
 - CSP allows only `'self'` scripts, so don't add inline scripts or `hx-on` attributes. Put behaviour in `web/static/js/app.js`.
+- Layout width comes from `--container-width` and `--gutter` in `style.css`. The card `.grid` uses explicit column counts (3, then 2 at ≤1024px, then 1 at ≤640px), not `auto-fill`, which would add columns as the container widens. Grid tracks are `minmax(0, 1fr)` and user text uses `overflow-wrap: anywhere`, so long words can't cause horizontal scrolling.
 
 ## Accounts, roles and payments
 
