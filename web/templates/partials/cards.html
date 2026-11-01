@@ -3,13 +3,18 @@
   <a href="/prompts/{{.ID}}" class="card-media" tabindex="-1" aria-hidden="true">
     {{if .ImagePath}}
       <img src="{{imageURL .ImagePath}}" alt="" loading="lazy">
+    {{else if .Locked}}
+      <span class="card-locked">{{template "lock-icon"}}<span>Premium · Unlock to view</span></span>
     {{else}}
       <span class="card-snippet">{{excerpt .Body 180}}</span>
     {{end}}
   </a>
   <div class="card-body">
     <div class="card-meta">
-      {{if .CategoryName}}<a href="/?category={{.CategorySlug}}" class="tag">{{.CategoryName}}</a>{{else}}<span class="tag tag-muted">Uncategorised</span>{{end}}
+      <span class="card-tags">
+        {{if .CategoryName}}<a href="/?category={{.CategorySlug}}" class="tag">{{.CategoryName}}</a>{{else}}<span class="tag tag-muted">Uncategorised</span>{{end}}
+        {{if .IsPremium}}<span class="tag tag-premium">Premium</span>{{end}}
+      </span>
       {{template "bookmark-btn" .}}
     </div>
     <h3 class="card-title"><a href="/prompts/{{.ID}}">{{.Title}}</a></h3>
@@ -34,7 +39,7 @@
 <div class="empty">
   <h2>{{.EmptyTitle}}</h2>
   <p>{{.EmptyText}}</p>
-  {{if and (not .Query) (not .Category) (ne .BasePath "/bookmarks")}}<a class="btn btn-primary" href="/prompts/new">New prompt</a>{{end}}
+  {{if and .IsAdmin (not .Query) (not .Category) (ne .BasePath "/bookmarks")}}<a class="btn btn-primary" href="/prompts/new">New prompt</a>{{end}}
 </div>
 {{end}}
 {{end}}

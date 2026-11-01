@@ -19,6 +19,13 @@ services:
     build: .
     environment:
       DATABASE_URL: postgres://promptify:promptify@db:5432/promptify?sslmode=disable
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      MEMBERSHIP_PRICE: ${MEMBERSHIP_PRICE:-49000}
+      MIDTRANS_SERVER_KEY: ${MIDTRANS_SERVER_KEY:-}
+      MIDTRANS_PRODUCTION: ${MIDTRANS_PRODUCTION:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     ports:
       - "8080:8080"
     volumes:

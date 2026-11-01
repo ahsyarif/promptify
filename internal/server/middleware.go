@@ -4,13 +4,19 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"time"
+
+	"github.com/ahsyarif/promptify/internal/store"
 )
 
 type ctxKey int
 
-const visitorKey ctxKey = iota
+const (
+	visitorKey ctxKey = iota
+	userKey
+)
 
 const visitorCookie = "visitor_id"
 
@@ -29,12 +35,48 @@ func (s *Server) withVisitor(next http.Handler) http.Handler {
 				Path:     "/",
 				MaxAge:   int((2 * 365 * 24 * time.Hour).Seconds()),
 				HttpOnly: true,
-				Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
+				Secure:   isSecure(r),
 				SameSite: http.SameSiteLaxMode,
 			})
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), visitorKey, id)))
 	})
+}
+
+// withUser loads the logged-in user, if any, into the request context.
+func (s *Server) withUser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := r.Cookie(sessionCookie)
+		if err != nil || c.Value == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		u, err := s.store.UserBySession(r.Context(), hashToken(c.Value))
+		if errors.Is(err, store.ErrNotFound) {
+			clearCookie(w, r, sessionCookie, "/")
+			next.ServeHTTP(w, r)
+			return
+		}
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, &u)))
+	})
+}
+
+// currentUser returns the logged-in user, or nil for anonymous visitors.
+func currentUser(r *http.Request) *store.User {
+	u, _ := r.Context().Value(userKey).(*store.User)
+	return u
+}
+
+func (s *Server) isAdmin(u *store.User) bool {
+	return u != nil && s.admins[normalizeEmail(u.Email)]
+}
+
+func (s *Server) canViewPremium(u *store.User) bool {
+	return s.isAdmin(u) || u.IsMember()
 }
 
 func visitorID(r *http.Request) string {

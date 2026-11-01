@@ -1,0 +1,17 @@
+{{define "content"}}
+<section class="checkout">
+  <a href="/membership" class="back">← Membership</a>
+  <h1>Scan to pay</h1>
+  <p class="lead">Lifetime membership · <strong>{{idr .Order.Amount}}</strong></p>
+
+  {{if eq .Order.Status "pending"}}
+  <div id="qr-panel" class="qr-panel">
+    <img class="qr" src="/membership/orders/{{.Order.OrderID}}/qr.png" width="280" height="280" alt="QRIS payment code">
+    <p class="muted">Scan with any QRIS app: GoPay, OVO, DANA, ShopeePay or your mobile banking app.</p>
+    <p class="hint">Expires {{wib .Order.ExpiresAt}}</p>
+  </div>
+  {{end}}
+
+  {{template "order-status" .}}
+</section>
+{{end}}

@@ -3,7 +3,9 @@ package server
 import (
 	"html/template"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 )
 
 func excerpt(s string, n int) string {
@@ -13,6 +15,29 @@ func excerpt(s string, n int) string {
 		return s
 	}
 	return strings.TrimSpace(string(r[:n])) + "…"
+}
+
+// formatIDR formats an amount of rupiah the Indonesian way: Rp49.000.
+func formatIDR(amount int64) string {
+	sign := ""
+	if amount < 0 {
+		sign, amount = "-", -amount
+	}
+	digits := strconv.FormatInt(amount, 10)
+	var b strings.Builder
+	for i, d := range digits {
+		if i > 0 && (len(digits)-i)%3 == 0 {
+			b.WriteByte('.')
+		}
+		b.WriteRune(d)
+	}
+	return sign + "Rp" + b.String()
+}
+
+var wib = time.FixedZone("WIB", 7*60*60)
+
+func formatWIB(t time.Time) string {
+	return t.In(wib).Format("2 Jan 2006, 15:04 MST")
 }
 
 var varPattern = regexp.MustCompile(`\{\{\s*[\w .-]+?\s*\}\}`)

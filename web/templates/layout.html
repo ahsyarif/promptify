@@ -17,7 +17,22 @@
         <a href="/" {{if eq .Nav "library"}}aria-current="page"{{end}}>Library</a>
         <a href="/categories" {{if eq .Nav "categories"}}aria-current="page"{{end}}>Categories</a>
         <a href="/bookmarks" {{if eq .Nav "bookmarks"}}aria-current="page"{{end}}>Saved {{template "bookmark-count" .BookmarkCount}}</a>
+        {{if .User.IsMember}}
+        <a href="/membership" class="member-badge" {{if eq .Nav "membership"}}aria-current="page"{{end}}>Member</a>
+        {{else}}
+        <a href="/membership" {{if eq .Nav "membership"}}aria-current="page"{{end}}>Membership</a>
+        {{end}}
+        {{if .User}}
+        <form class="nav-account" method="post" action="/logout">
+          <span class="nav-email" title="{{.User.Email}}">{{.User.Email}}</span>
+          <button type="submit" class="link-button">Log out</button>
+        </form>
+        {{else}}
+        <a href="/login" {{if or (eq .Nav "login") (eq .Nav "signup")}}aria-current="page"{{end}}>Log in</a>
+        {{end}}
+        {{if .IsAdmin}}
         <a href="/prompts/new" class="btn btn-primary btn-small" {{if eq .Nav "new"}}aria-current="page"{{end}}>New prompt</a>
+        {{end}}
       </nav>
     </div>
   </header>

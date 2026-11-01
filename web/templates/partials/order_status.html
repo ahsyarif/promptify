@@ -1,0 +1,22 @@
+{{define "order-status"}}
+{{if eq .Order.Status "pending"}}
+<div id="order-status" class="order-status" role="status"
+     hx-get="/membership/orders/{{.Order.OrderID}}/status" hx-trigger="every 3s" hx-swap="outerHTML">
+  <span class="spinner" aria-hidden="true"></span> Waiting for payment…
+</div>
+{{else}}
+<div id="qr-panel" hx-swap-oob="true"></div>
+{{if eq .Order.Status "paid"}}
+<div id="order-status" class="order-status is-paid" role="status">
+  Payment received. <a href="/membership?welcome=1">Continue</a>
+</div>
+{{else}}
+<div id="order-status" class="order-status is-failed" role="status">
+  <p>{{if eq .Order.Status "expired"}}This QR code has expired.{{else}}The payment didn't go through.{{end}}</p>
+  <form method="post" action="/membership/checkout">
+    <button type="submit" class="btn btn-primary">Generate a new QR code</button>
+  </form>
+</div>
+{{end}}
+{{end}}
+{{end}}

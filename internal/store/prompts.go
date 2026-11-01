@@ -15,18 +15,21 @@ type ListParams struct {
 	CategorySlug   string
 	VisitorID      string
 	BookmarkedOnly bool
-	Limit          int
-	Offset         int
+	// HidePremiumBodies stops search from matching the text of premium
+	// prompts, for viewers who aren't allowed to read it.
+	HidePremiumBodies bool
+	Limit             int
+	Offset            int
 }
 
 const promptColumns = `p.id, p.title, p.description, p.body, p.category_id,
-	COALESCE(c.name, ''), COALESCE(c.slug, ''), p.image_path, p.created_at, p.updated_at,
+	COALESCE(c.name, ''), COALESCE(c.slug, ''), p.image_path, p.is_premium, p.created_at, p.updated_at,
 	EXISTS (SELECT 1 FROM bookmarks b WHERE b.prompt_id = p.id AND b.visitor_id = $1)`
 
 func scanPrompt(row pgx.Row) (Prompt, error) {
 	var p Prompt
 	err := row.Scan(&p.ID, &p.Title, &p.Description, &p.Body, &p.CategoryID,
-		&p.CategoryName, &p.CategorySlug, &p.ImagePath, &p.CreatedAt, &p.UpdatedAt, &p.Bookmarked)
+		&p.CategoryName, &p.CategorySlug, &p.ImagePath, &p.IsPremium, &p.CreatedAt, &p.UpdatedAt, &p.Bookmarked)
 	return p, err
 }
 
@@ -34,11 +37,17 @@ func scanPrompt(row pgx.Row) (Prompt, error) {
 // every word is prefix-matched, so results update while the user is typing.
 // Only letters and digits survive, which keeps the expression syntactically safe.
 func PrefixTSQuery(input string) string {
+	return prefixTSQuery(input, "")
+}
+
+// prefixTSQuery optionally restricts matches to the given weights; prompts
+// index the title as A, the description as B and the body as C.
+func prefixTSQuery(input, weights string) string {
 	words := strings.FieldsFunc(input, func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	})
 	for i, w := range words {
-		words[i] = strings.ToLower(w) + ":*"
+		words[i] = strings.ToLower(w) + ":*" + weights
 	}
 	return strings.Join(words, " & ")
 }
@@ -70,9 +79,16 @@ func (s *Store) ListPrompts(ctx context.Context, p ListParams) ([]Prompt, bool, 
 		like := arg("%" + likeEscaper.Replace(q) + "%")
 		cond := fmt.Sprintf("p.title ILIKE %s OR p.description ILIKE %s", like, like)
 		if tsq := PrefixTSQuery(q); tsq != "" {
-			tsArg := arg(tsq)
-			cond = fmt.Sprintf("p.search @@ to_tsquery('english', %s) OR %s", tsArg, cond)
-			order = fmt.Sprintf("ts_rank(p.search, to_tsquery('english', %s)) DESC, %s", tsArg, order)
+			full := fmt.Sprintf("to_tsquery('english', %s)", arg(tsq))
+			match, rank := "p.search @@ "+full, full
+			if p.HidePremiumBodies {
+				// Matching hidden bodies would let searches probe their content.
+				public := fmt.Sprintf("to_tsquery('english', %s)", arg(prefixTSQuery(q, "AB")))
+				match = fmt.Sprintf("(p.search @@ %s OR (NOT p.is_premium AND p.search @@ %s))", public, full)
+				rank = fmt.Sprintf("CASE WHEN p.is_premium THEN %s ELSE %s END", public, full)
+			}
+			cond = match + " OR " + cond
+			order = fmt.Sprintf("ts_rank(p.search, %s) DESC, %s", rank, order)
 		}
 		where = append(where, "("+cond+")")
 	}
@@ -113,18 +129,18 @@ func (s *Store) GetPrompt(ctx context.Context, id int64, visitorID string) (Prom
 func (s *Store) CreatePrompt(ctx context.Context, in PromptInput) (int64, error) {
 	var id int64
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO prompts (title, description, body, category_id, image_path)
-		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-		in.Title, in.Description, in.Body, in.CategoryID, in.ImagePath).Scan(&id)
+		INSERT INTO prompts (title, description, body, category_id, image_path, is_premium)
+		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		in.Title, in.Description, in.Body, in.CategoryID, in.ImagePath, in.IsPremium).Scan(&id)
 	return id, err
 }
 
 func (s *Store) UpdatePrompt(ctx context.Context, id int64, in PromptInput) error {
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE prompts
-		SET title = $2, description = $3, body = $4, category_id = $5, image_path = $6, updated_at = now()
+		SET title = $2, description = $3, body = $4, category_id = $5, image_path = $6, is_premium = $7, updated_at = now()
 		WHERE id = $1`,
-		id, in.Title, in.Description, in.Body, in.CategoryID, in.ImagePath)
+		id, in.Title, in.Description, in.Body, in.CategoryID, in.ImagePath, in.IsPremium)
 	if err != nil {
 		return err
 	}

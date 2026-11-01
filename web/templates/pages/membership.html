@@ -1,0 +1,35 @@
+{{define "content"}}
+<section class="membership">
+  {{if .Welcome}}<p class="notice notice-success" role="status">Payment received — welcome aboard! Every Premium prompt is now unlocked.</p>{{end}}
+
+  <h1>Lifetime membership</h1>
+  <p class="lead">One payment. Every Premium prompt, forever.</p>
+
+  <div class="price-card">
+    <div class="price">{{idr .Price}} <span class="muted">one-time</span></div>
+    <ul class="perks">
+      <li>Unlock every Premium prompt in the library</li>
+      <li>Includes Premium prompts added later</li>
+      <li>Pay by QRIS: GoPay, OVO, DANA, ShopeePay or mobile banking</li>
+    </ul>
+
+    {{with .FormError}}<p class="error" role="alert">{{.}}</p>{{end}}
+
+    {{if .User.IsMember}}
+      <p class="member-note">You've had lifetime access since {{.User.MemberSince.Format "2 Jan 2006"}}.</p>
+      <a class="btn btn-block" href="/">Browse prompts</a>
+    {{else if .IsAdmin}}
+      <p class="member-note">As an admin you can already see every prompt.</p>
+    {{else if not .PaymentsEnabled}}
+      <p class="muted">Payments are not available right now. Please check back later.</p>
+    {{else if .User}}
+      <form method="post" action="/membership/checkout">
+        <button type="submit" class="btn btn-primary btn-block">Pay {{idr .Price}} with QRIS</button>
+      </form>
+    {{else}}
+      <a class="btn btn-primary btn-block" href="/login?next=%2Fmembership">Log in to unlock</a>
+      <p class="hint center">New here? <a href="/signup?next=%2Fmembership">Create an account</a></p>
+    {{end}}
+  </div>
+</section>
+{{end}}

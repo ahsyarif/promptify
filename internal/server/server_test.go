@@ -18,29 +18,97 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ahsyarif/promptify/internal/store"
 	"github.com/ahsyarif/promptify/internal/testdb"
 )
+
+const (
+	adminEmail   = "admin@example.com"
+	testPassword = "correct horse battery"
+	testPrice    = 49000
+)
+
+func TestMain(m *testing.M) {
+	// Real hashes take ~0.2s each; tests only need the format to be right.
+	passwordIterations = 1000
+	os.Exit(m.Run())
+}
 
 type testApp struct {
 	t         *testing.T
 	srv       *httptest.Server
 	store     *store.Store
 	uploadDir string
+	midtrans  *fakeMidtrans
 }
 
-func newTestApp(t *testing.T) *testApp {
+// newTestApp starts the app with a fake Midtrans and one admin email.
+func newTestApp(t *testing.T, opts ...func(*Config)) *testApp {
 	t.Helper()
 	st := store.New(testdb.New(t))
-	uploadDir := t.TempDir()
-	s, err := New(st, uploadDir, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	mt := newFakeMidtrans(t)
+	cfg := Config{
+		UploadDir:       t.TempDir(),
+		AdminEmails:     []string{adminEmail},
+		MembershipPrice: testPrice,
+		PublicURL:       "http://promptify.test",
+		Midtrans:        mt.client,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	s, err := New(st, cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	ts := httptest.NewServer(s)
 	t.Cleanup(ts.Close)
-	return &testApp{t: t, srv: ts, store: st, uploadDir: uploadDir}
+	return &testApp{t: t, srv: ts, store: st, uploadDir: cfg.UploadDir, midtrans: mt}
+}
+
+func (a *testApp) postForm(c *http.Client, path string, form url.Values, headers map[string]string) (int, http.Header, string) {
+	a.t.Helper()
+	h := map[string]string{"Content-Type": "application/x-www-form-urlencoded"}
+	for k, v := range headers {
+		h[k] = v
+	}
+	return a.do(c, http.MethodPost, path, strings.NewReader(form.Encode()), h)
+}
+
+// signup returns a client logged in as a new account with the given email.
+func (a *testApp) signup(email string) *http.Client {
+	a.t.Helper()
+	c := a.client()
+	code, h, body := a.postForm(c, "/signup", url.Values{"email": {email}, "password": {testPassword}}, nil)
+	if code != http.StatusSeeOther {
+		a.t.Fatalf("signup %s: code=%d location=%q\n%s", email, code, h.Get("Location"), body)
+	}
+	return c
+}
+
+func (a *testApp) admin() *http.Client {
+	return a.signup(adminEmail)
+}
+
+// member returns a logged-in client whose account has paid for membership.
+func (a *testApp) member(email string) *http.Client {
+	a.t.Helper()
+	c := a.signup(email)
+	ctx := context.Background()
+	u, err := a.store.UserByEmail(ctx, email)
+	if err != nil {
+		a.t.Fatal(err)
+	}
+	o, err := a.store.CreateOrder(ctx, store.Order{OrderID: "seed-" + email, UserID: u.ID, Amount: testPrice, ExpiresAt: time.Now().Add(time.Hour)})
+	if err != nil {
+		a.t.Fatal(err)
+	}
+	if _, err := a.store.ApplyOrderStatus(ctx, o.OrderID, store.OrderPaid, ""); err != nil {
+		a.t.Fatal(err)
+	}
+	return c
 }
 
 // client returns a browser-like client with its own cookie jar (i.e. its own
@@ -201,7 +269,7 @@ func TestCategoryFilterAndLoadMore(t *testing.T) {
 
 func TestCreatePromptWithImage(t *testing.T) {
 	app := newTestApp(t)
-	c := app.client()
+	c := app.admin()
 
 	body, ctype := multipartBody(t, map[string]string{
 		"title": "Sunset painting",
@@ -239,7 +307,7 @@ func TestCreatePromptWithImage(t *testing.T) {
 
 func TestCreatePromptValidation(t *testing.T) {
 	app := newTestApp(t)
-	c := app.client()
+	c := app.admin()
 
 	cases := []struct {
 		name     string
@@ -277,7 +345,7 @@ func TestCreatePromptValidation(t *testing.T) {
 
 func TestOversizedUpload(t *testing.T) {
 	app := newTestApp(t)
-	c := app.client()
+	c := app.admin()
 	big := append(pngBytes(t), make([]byte, maxRequestBytes)...)
 	body, ctype := multipartBody(t, map[string]string{"title": "x", "body": "y"}, "big.png", big)
 	code, _, page := app.do(c, http.MethodPost, "/prompts", body, map[string]string{"Content-Type": ctype})
@@ -288,7 +356,7 @@ func TestOversizedUpload(t *testing.T) {
 
 func TestUpdateAndDeleteManageImages(t *testing.T) {
 	app := newTestApp(t)
-	c := app.client()
+	c := app.admin()
 
 	body, ctype := multipartBody(t, map[string]string{"title": "Original", "body": "b"}, "a.png", pngBytes(t))
 	_, h, _ := app.do(c, http.MethodPost, "/prompts", body, map[string]string{"Content-Type": ctype})
@@ -392,7 +460,7 @@ func TestVisitorCookie(t *testing.T) {
 
 func TestCategories(t *testing.T) {
 	app := newTestApp(t)
-	c := app.client()
+	c := app.admin()
 	post := func(name string) (int, http.Header, string) {
 		form := url.Values{"name": {name}}
 		return app.do(c, http.MethodPost, "/categories", strings.NewReader(form.Encode()),
@@ -415,7 +483,7 @@ func TestCategories(t *testing.T) {
 
 func TestNotFoundAndSecurityHeaders(t *testing.T) {
 	app := newTestApp(t)
-	c := app.client()
+	c := app.admin()
 	for _, p := range []string{"/nope", "/prompts/abc", "/prompts/0", "/prompts/999999", "/prompts/999999/edit"} {
 		if code, _ := app.get(c, p, false); code != http.StatusNotFound {
 			t.Errorf("GET %s = %d, want 404", p, code)

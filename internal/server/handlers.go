@@ -17,6 +17,13 @@ type viewData struct {
 	BookmarkCount int
 	Categories    []store.Category
 
+	// Viewer. IsMember is also true for admins: both can see premium prompts.
+	User          *store.User
+	IsAdmin       bool
+	IsMember      bool
+	GoogleEnabled bool
+	Price         int64
+
 	// Listing pages.
 	BasePath   string
 	Query      string
@@ -35,6 +42,17 @@ type viewData struct {
 	// Categories page.
 	CategoryName        string
 	CategoryDescription string
+
+	// Auth pages.
+	Email  string
+	Next   string
+	Notice string
+
+	// Membership pages.
+	PaymentsEnabled bool
+	Welcome         bool
+	Order           store.Order
+	FormError       string
 }
 
 type promptForm struct {
@@ -43,12 +61,26 @@ type promptForm struct {
 	Body        string
 	CategoryID  string
 	ImagePath   string
+	IsPremium   bool
 }
 
 // isPartialRequest reports whether htmx asked for a fragment. History-restore
 // requests need the full page because htmx swaps the whole body.
 func isPartialRequest(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-History-Restore-Request") != "true"
+}
+
+// viewerData describes who is looking at the page. Partials need it too, so
+// it is separate from baseData, which also loads the layout's data.
+func (s *Server) viewerData(r *http.Request) viewData {
+	u := currentUser(r)
+	return viewData{
+		User:          u,
+		IsAdmin:       s.isAdmin(u),
+		IsMember:      s.canViewPremium(u),
+		GoogleEnabled: s.cfg.Google.Enabled(),
+		Price:         s.cfg.MembershipPrice,
+	}
 }
 
 func (s *Server) baseData(r *http.Request, title, nav string) (viewData, error) {
@@ -60,7 +92,49 @@ func (s *Server) baseData(r *http.Request, title, nav string) (viewData, error) 
 	if err != nil {
 		return viewData{}, err
 	}
-	return viewData{Title: title, Nav: nav, Categories: cats, BookmarkCount: count}, nil
+	data := s.viewerData(r)
+	data.Title, data.Nav, data.Categories, data.BookmarkCount = title, nav, cats, count
+	return data, nil
+}
+
+// redact hides premium bodies from viewers who may not see them. Every
+// handler that renders prompts must pass them through here first.
+func (s *Server) redact(viewer *store.User, ps ...*store.Prompt) {
+	if s.canViewPremium(viewer) {
+		return
+	}
+	for _, p := range ps {
+		if p.IsPremium {
+			p.Body = ""
+			p.Locked = true
+		}
+	}
+}
+
+// requireAdmin reports whether the request may change content. Otherwise it
+// responds: anonymous users are sent to log in, and everyone else gets a 404
+// so the route's existence isn't revealed.
+func (s *Server) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	u := currentUser(r)
+	if s.isAdmin(u) {
+		return true
+	}
+	if u != nil {
+		s.handleNotFound(w, r)
+		return false
+	}
+	next := "/"
+	if r.Method == http.MethodGet {
+		next = r.URL.RequestURI()
+	}
+	target := "/login?next=" + url.QueryEscape(next)
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Redirect", target)
+		w.WriteHeader(http.StatusNoContent)
+		return false
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
+	return false
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -78,26 +152,27 @@ func (s *Server) listPrompts(w http.ResponseWriter, r *http.Request, basePath st
 	offset, _ := strconv.Atoi(q.Get("offset"))
 	offset = max(offset, 0)
 
+	viewer := currentUser(r)
 	prompts, hasMore, err := s.store.ListPrompts(r.Context(), store.ListParams{
-		Query:          query,
-		CategorySlug:   category,
-		VisitorID:      visitorID(r),
-		BookmarkedOnly: bookmarkedOnly,
-		Limit:          pageSize,
-		Offset:         offset,
+		Query:             query,
+		CategorySlug:      category,
+		VisitorID:         visitorID(r),
+		BookmarkedOnly:    bookmarkedOnly,
+		HidePremiumBodies: !s.canViewPremium(viewer),
+		Limit:             pageSize,
+		Offset:            offset,
 	})
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-
-	data := viewData{
-		BasePath: basePath,
-		Query:    query,
-		Category: category,
-		Prompts:  prompts,
-		HasMore:  hasMore,
+	for i := range prompts {
+		s.redact(viewer, &prompts[i])
 	}
+
+	data := s.viewerData(r)
+	data.BasePath, data.Query, data.Category = basePath, query, category
+	data.Prompts, data.HasMore = prompts, hasMore
 	if hasMore {
 		next := url.Values{}
 		if query != "" {
@@ -114,8 +189,10 @@ func (s *Server) listPrompts(w http.ResponseWriter, r *http.Request, basePath st
 		data.EmptyTitle, data.EmptyText = "No saved prompts yet", "Tap the bookmark icon on any prompt to keep it here."
 	case query != "" || category != "":
 		data.EmptyTitle, data.EmptyText = "No matches", "Try a different search term or category."
-	default:
+	case data.IsAdmin:
 		data.EmptyTitle, data.EmptyText = "The library is empty", "Add the first prompt to get started."
+	default:
+		data.EmptyTitle, data.EmptyText = "No prompts yet", "Check back soon."
 	}
 
 	w.Header().Add("Vary", "HX-Request")
@@ -137,8 +214,10 @@ func (s *Server) listPrompts(w http.ResponseWriter, r *http.Request, basePath st
 		s.serverError(w, r, err)
 		return
 	}
-	data.Title, data.Nav, data.Categories, data.BookmarkCount = base.Title, base.Nav, base.Categories, base.BookmarkCount
-	s.render(w, http.StatusOK, "list", data)
+	base.BasePath, base.Query, base.Category = data.BasePath, data.Query, data.Category
+	base.Prompts, base.HasMore, base.NextURL = data.Prompts, data.HasMore, data.NextURL
+	base.EmptyTitle, base.EmptyText = data.EmptyTitle, data.EmptyText
+	s.render(w, http.StatusOK, "list", base)
 }
 
 func (s *Server) handleShowPrompt(w http.ResponseWriter, r *http.Request) {
@@ -155,6 +234,7 @@ func (s *Server) handleShowPrompt(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	s.redact(currentUser(r), &p)
 	data, err := s.baseData(r, p.Title, "")
 	if err != nil {
 		s.serverError(w, r, err)
@@ -165,6 +245,9 @@ func (s *Server) handleShowPrompt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleNewPrompt(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
 	data, err := s.baseData(r, "New prompt", "new")
 	if err != nil {
 		s.serverError(w, r, err)
@@ -175,6 +258,9 @@ func (s *Server) handleNewPrompt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleEditPrompt(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
 	id, ok := s.promptID(w, r)
 	if !ok {
 		return
@@ -194,7 +280,7 @@ func (s *Server) handleEditPrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data.Prompt = p
-	data.Form = promptForm{Title: p.Title, Description: p.Description, Body: p.Body, ImagePath: p.ImagePath}
+	data.Form = promptForm{Title: p.Title, Description: p.Description, Body: p.Body, ImagePath: p.ImagePath, IsPremium: p.IsPremium}
 	if p.CategoryID != nil {
 		data.Form.CategoryID = strconv.FormatInt(*p.CategoryID, 10)
 	}
@@ -202,6 +288,9 @@ func (s *Server) handleEditPrompt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
 	form, input, errs, err := s.parsePromptForm(w, r)
 	if err != nil {
 		s.serverError(w, r, err)
@@ -228,6 +317,9 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
 	id, ok := s.promptID(w, r)
 	if !ok {
 		return
@@ -272,6 +364,9 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeletePrompt(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
 	id, ok := s.promptID(w, r)
 	if !ok {
 		return
@@ -333,6 +428,9 @@ func (s *Server) handleCategories(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateCategory(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	description := strings.TrimSpace(r.FormValue("description"))
 	errs := map[string]string{}

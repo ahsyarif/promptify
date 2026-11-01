@@ -1,0 +1,29 @@
+{{define "content"}}
+<section class="auth">
+  <h1>Create an account</h1>
+  <p class="muted">Sign up to unlock Premium prompts with a lifetime membership.</p>
+
+  {{if .GoogleEnabled}}
+  <a class="btn btn-block" href="/auth/google?next={{.Next}}">{{template "google-icon"}} Continue with Google</a>
+  <div class="divider"><span>or</span></div>
+  {{end}}
+
+  <form class="stack" method="post" action="/signup">
+    <input type="hidden" name="next" value="{{.Next}}">
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{{.Email}}" maxlength="254" autocomplete="email" required autofocus {{if .Errors.email}}aria-invalid="true"{{end}}>
+      {{with .Errors.email}}<p class="error">{{.}}</p>{{end}}
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" minlength="8" maxlength="72" autocomplete="new-password" required {{if .Errors.password}}aria-invalid="true"{{end}}>
+      <p class="hint">At least 8 characters.</p>
+      {{with .Errors.password}}<p class="error">{{.}}</p>{{end}}
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">Create account</button>
+  </form>
+
+  <p class="auth-switch muted">Already have an account? <a href="/login?next={{.Next}}">Log in</a></p>
+</section>
+{{end}}

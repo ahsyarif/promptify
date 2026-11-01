@@ -1,0 +1,29 @@
+{{define "content"}}
+<section class="auth">
+  <h1>Log in</h1>
+  <p class="muted">Welcome back.</p>
+
+  {{with .Notice}}<p class="notice" role="alert">{{.}}</p>{{end}}
+
+  {{if .GoogleEnabled}}
+  <a class="btn btn-block" href="/auth/google?next={{.Next}}">{{template "google-icon"}} Continue with Google</a>
+  <div class="divider"><span>or</span></div>
+  {{end}}
+
+  <form class="stack" method="post" action="/login">
+    <input type="hidden" name="next" value="{{.Next}}">
+    {{with .FormError}}<p class="error" role="alert">{{.}}</p>{{end}}
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{{.Email}}" autocomplete="email" required autofocus>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">Log in</button>
+  </form>
+
+  <p class="auth-switch muted">No account yet? <a href="/signup?next={{.Next}}">Create one</a></p>
+</section>
+{{end}}

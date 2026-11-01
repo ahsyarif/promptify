@@ -1,10 +1,10 @@
 {{define "content"}}
 <section class="intro">
   <h1>Categories</h1>
-  <p class="muted">Browse prompts by topic, or add a new category.</p>
+  <p class="muted">Browse prompts by topic{{if .IsAdmin}}, or add a new category{{end}}.</p>
 </section>
 
-<div class="category-layout">
+<div class="category-layout{{if not .IsAdmin}} is-single{{end}}">
   <ul class="category-list">
     {{range .Categories}}
     <li>
@@ -19,6 +19,7 @@
     {{end}}
   </ul>
 
+  {{if .IsAdmin}}
   <form class="stack card-plain" method="post" action="/categories">
     <h2>New category</h2>
     <div class="field">
@@ -33,5 +34,6 @@
     </div>
     <button type="submit" class="btn btn-primary">Add category</button>
   </form>
+  {{end}}
 </div>
 {{end}}

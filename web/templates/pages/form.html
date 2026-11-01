@@ -48,6 +48,10 @@
       {{with .Errors.image}}<p class="error">{{.}}</p>{{end}}
     </div>
 
+    <div class="field">
+      <label class="checkbox"><input type="checkbox" name="is_premium" value="1" {{if .Form.IsPremium}}checked{{end}}> Premium <span class="muted">· only members can see the prompt text</span></label>
+    </div>
+
     <div class="row">
       <button type="submit" class="btn btn-primary">{{if .Prompt.ID}}Save changes{{else}}Create prompt{{end}}</button>
       <a href="{{if .Prompt.ID}}/prompts/{{.Prompt.ID}}{{else}}/{{end}}" class="btn btn-ghost">Cancel</a>

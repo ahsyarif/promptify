@@ -35,8 +35,9 @@ func (s *Server) parsePromptForm(w http.ResponseWriter, r *http.Request) (prompt
 		Description: strings.TrimSpace(r.PostFormValue("description")),
 		Body:        strings.TrimSpace(r.PostFormValue("body")),
 		CategoryID:  r.PostFormValue("category_id"),
+		IsPremium:   r.PostFormValue("is_premium") == "1",
 	}
-	input := store.PromptInput{Title: form.Title, Description: form.Description, Body: form.Body}
+	input := store.PromptInput{Title: form.Title, Description: form.Description, Body: form.Body, IsPremium: form.IsPremium}
 
 	switch {
 	case form.Title == "":
