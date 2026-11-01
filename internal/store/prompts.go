@@ -24,12 +24,12 @@ type ListParams struct {
 
 const promptColumns = `p.id, p.title, p.description, p.body, p.category_id,
 	COALESCE(c.name, ''), COALESCE(c.slug, ''), p.image_path, p.is_premium, p.created_at, p.updated_at,
-	EXISTS (SELECT 1 FROM bookmarks b WHERE b.prompt_id = p.id AND b.visitor_id = $1)`
+	EXISTS (SELECT 1 FROM bookmarks b WHERE b.prompt_id = p.id AND b.visitor_id = $1), p.model, p.negative_prompt, p.aspect_ratio`
 
 func scanPrompt(row pgx.Row) (Prompt, error) {
 	var p Prompt
 	err := row.Scan(&p.ID, &p.Title, &p.Description, &p.Body, &p.CategoryID,
-		&p.CategoryName, &p.CategorySlug, &p.ImagePath, &p.IsPremium, &p.CreatedAt, &p.UpdatedAt, &p.Bookmarked)
+		&p.CategoryName, &p.CategorySlug, &p.ImagePath, &p.IsPremium, &p.CreatedAt, &p.UpdatedAt, &p.Bookmarked, &p.Model, &p.NegativePrompt, &p.AspectRatio)
 	return p, err
 }
 
@@ -129,18 +129,18 @@ func (s *Store) GetPrompt(ctx context.Context, id int64, visitorID string) (Prom
 func (s *Store) CreatePrompt(ctx context.Context, in PromptInput) (int64, error) {
 	var id int64
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO prompts (title, description, body, category_id, image_path, is_premium)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		in.Title, in.Description, in.Body, in.CategoryID, in.ImagePath, in.IsPremium).Scan(&id)
+		INSERT INTO prompts (title, description, body, category_id, image_path, is_premium, model, negative_prompt, aspect_ratio)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+		in.Title, in.Description, in.Body, in.CategoryID, in.ImagePath, in.IsPremium, in.Model, in.NegativePrompt, in.AspectRatio).Scan(&id)
 	return id, err
 }
 
 func (s *Store) UpdatePrompt(ctx context.Context, id int64, in PromptInput) error {
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE prompts
-		SET title = $2, description = $3, body = $4, category_id = $5, image_path = $6, is_premium = $7, updated_at = now()
+		SET title = $2, description = $3, body = $4, category_id = $5, image_path = $6, is_premium = $7, model = $8, negative_prompt = $9, aspect_ratio = $10, updated_at = now()
 		WHERE id = $1`,
-		id, in.Title, in.Description, in.Body, in.CategoryID, in.ImagePath, in.IsPremium)
+		id, in.Title, in.Description, in.Body, in.CategoryID, in.ImagePath, in.IsPremium, in.Model, in.NegativePrompt, in.AspectRatio)
 	if err != nil {
 		return err
 	}

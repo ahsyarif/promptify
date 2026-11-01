@@ -14,12 +14,13 @@ const (
 	maxTitleLen       = 200
 	maxDescriptionLen = 500
 	maxBodyLen        = 20000
+	maxNegativeLen    = 5000
 	maxRequestBytes   = maxImageBytes + 1<<20
 )
 
 // parsePromptForm validates the text fields of the prompt form. Validation
 // problems are returned in errs; err is reserved for unexpected failures.
-func (s *Server) parsePromptForm(w http.ResponseWriter, r *http.Request) (promptForm, store.PromptInput, map[string]string, error) {
+func (s *Server) parsePromptForm(w http.ResponseWriter, r *http.Request, requireImage bool) (promptForm, store.PromptInput, map[string]string, error) {
 	errs := map[string]string{}
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBytes)
 	if err := r.ParseMultipartForm(1 << 20); err != nil && !errors.Is(err, http.ErrNotMultipart) {
@@ -30,15 +31,33 @@ func (s *Server) parsePromptForm(w http.ResponseWriter, r *http.Request) (prompt
 		return promptForm{}, store.PromptInput{}, nil, err
 	}
 
-	form := promptForm{
-		Title:       strings.TrimSpace(r.PostFormValue("title")),
-		Description: strings.TrimSpace(r.PostFormValue("description")),
-		Body:        strings.TrimSpace(r.PostFormValue("body")),
-		CategoryID:  r.PostFormValue("category_id"),
-		IsPremium:   r.PostFormValue("is_premium") == "1",
+	if requireImage && (r.MultipartForm == nil || len(r.MultipartForm.File["image"]) == 0 || r.MultipartForm.File["image"][0].Size == 0) {
+		errs["image"] = "Add an example image."
 	}
-	input := store.PromptInput{Title: form.Title, Description: form.Description, Body: form.Body, IsPremium: form.IsPremium}
+	form := promptForm{
+		Model:          strings.TrimSpace(r.PostFormValue("model")),
+		NegativePrompt: strings.TrimSpace(r.PostFormValue("negative_prompt")),
+		AspectRatio:    strings.TrimSpace(r.PostFormValue("aspect_ratio")),
+		Title:          strings.TrimSpace(r.PostFormValue("title")),
+		Description:    strings.TrimSpace(r.PostFormValue("description")),
+		Body:           strings.TrimSpace(r.PostFormValue("body")),
+		CategoryID:     r.PostFormValue("category_id"),
+		IsPremium:      r.PostFormValue("is_premium") == "1",
+	}
+	input := store.PromptInput{
+		Title: form.Title, Description: form.Description, Body: form.Body, IsPremium: form.IsPremium,
+		Model: form.Model, NegativePrompt: form.NegativePrompt, AspectRatio: form.AspectRatio,
+	}
 
+	if !validModel(form.Model) {
+		errs["model"] = "Choose the model this prompt was made for."
+	}
+	if !validAspectRatio(form.AspectRatio) {
+		errs["aspect_ratio"] = "Choose a valid aspect ratio."
+	}
+	if utf8.RuneCountInString(form.NegativePrompt) > maxNegativeLen {
+		errs["negative_prompt"] = "Negative prompt must be 5,000 characters or fewer."
+	}
 	switch {
 	case form.Title == "":
 		errs["title"] = "Title is required."
@@ -73,20 +92,19 @@ func (s *Server) parsePromptForm(w http.ResponseWriter, r *http.Request) (prompt
 }
 
 // imageFromRequest resolves the image the prompt should have after the form is
-// submitted: a newly uploaded file, nothing (if removal was requested), or the
-// current image unchanged.
+// submitted: a newly uploaded file or the current image unchanged.
 func (s *Server) imageFromRequest(r *http.Request, current string, errs map[string]string) (string, error) {
 	file, header, err := r.FormFile("image")
 	if errors.Is(err, http.ErrMissingFile) || errors.Is(err, http.ErrNotMultipart) {
-		if r.PostFormValue("remove_image") == "1" {
-			return "", nil
-		}
 		return current, nil
 	}
 	if err != nil {
 		return "", err
 	}
 	defer file.Close()
+	if header.Size == 0 {
+		return current, nil
+	}
 
 	name, err := s.saveImage(file, header)
 	switch {

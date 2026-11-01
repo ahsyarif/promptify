@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/ahsyarif/promptify/internal/payment/midtrans"
-	"github.com/ahsyarif/promptify/internal/store"
 )
 
 func TestPasswordHashing(t *testing.T) {
@@ -190,7 +189,7 @@ func TestExpiredOrUnknownSessionCookie(t *testing.T) {
 
 func TestAdminOnlyRoutes(t *testing.T) {
 	app := newTestApp(t)
-	id, err := app.store.CreatePrompt(context.Background(), store.PromptInput{Title: "Keep me", Body: "b"})
+	id, err := app.store.CreatePrompt(context.Background(), testPrompt("Keep me"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +242,7 @@ func TestAdminOnlyRoutes(t *testing.T) {
 	if p, err := app.store.GetPrompt(context.Background(), id, ""); err != nil || p.Title != "Keep me" {
 		t.Fatalf("non-admins must not change content: %+v, %v", p, err)
 	}
-	if cats, _ := app.store.ListCategories(context.Background()); len(cats) != 5 {
+	if cats, _ := app.store.ListCategories(context.Background()); len(cats) != 6 {
 		t.Fatalf("non-admins must not create categories, have %d", len(cats))
 	}
 	for _, path := range []string{"/", prompt, "/categories"} {
@@ -287,7 +286,8 @@ func TestCrossOriginProtection(t *testing.T) {
 	if code != http.StatusForbidden {
 		t.Fatalf("cross-origin logout: code=%d, want 403", code)
 	}
-	code, _, _ = app.postForm(admin, "/prompts", form, map[string]string{"Sec-Fetch-Site": "same-origin"})
+	body, ct := multipartBody(t, map[string]string{"title": "x", "body": "y", "model": "flux"}, "image.png", pngBytes(t))
+	code, _, _ = app.do(admin, http.MethodPost, "/prompts", body, map[string]string{"Sec-Fetch-Site": "same-origin", "Content-Type": ct})
 	if code != http.StatusSeeOther {
 		t.Fatalf("same-origin POST: code=%d, want 303", code)
 	}

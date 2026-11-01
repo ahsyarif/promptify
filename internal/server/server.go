@@ -160,6 +160,9 @@ func noDirListing(next http.Handler) http.Handler {
 func (s *Server) parseTemplates() error {
 	funcs := template.FuncMap{
 		"excerpt":       excerpt,
+		"modelLabel":    modelLabel,
+		"imageModels":   func() []option { return imageModels },
+		"aspectRatios":  func() []string { return aspectRatios },
 		"highlightVars": highlightVars,
 		"imageURL":      func(p string) string { return "/uploads/" + p },
 		"idr":           formatIDR,

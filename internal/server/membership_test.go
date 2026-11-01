@@ -54,15 +54,15 @@ func TestPremiumBodiesAreRedacted(t *testing.T) {
 	app := newTestApp(t)
 	ctx := context.Background()
 	const secret = "PREMIUMSECRET"
-	older, err := app.store.CreatePrompt(ctx, store.PromptInput{Title: "Older gem", Description: "Teaser", Body: secret + " one zebracorn", IsPremium: true})
+	older, err := app.store.CreatePrompt(ctx, store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "Older gem", Description: "Teaser", NegativePrompt: "NEGATIVESECRET one", Body: secret + " one zebracorn", IsPremium: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for i := range pageSize {
-		app.store.CreatePrompt(ctx, store.PromptInput{Title: fmt.Sprintf("Free %02d", i), Body: "free body"})
+		app.store.CreatePrompt(ctx, store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: fmt.Sprintf("Free %02d", i), Body: "free body"})
 	}
-	newer, _ := app.store.CreatePrompt(ctx, store.PromptInput{Title: "Newer gem", Description: "Teaser", Body: secret + " two"})
-	app.store.UpdatePrompt(ctx, newer, store.PromptInput{Title: "Newer gem", Description: "Teaser", Body: secret + " two", IsPremium: true})
+	newer, _ := app.store.CreatePrompt(ctx, store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "Newer gem", Description: "Teaser", NegativePrompt: "NEGATIVESECRET two", Body: secret + " two"})
+	app.store.UpdatePrompt(ctx, newer, store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "Newer gem", Description: "Teaser", NegativePrompt: "NEGATIVESECRET two", Body: secret + " two", IsPremium: true})
 
 	pages := func(c *http.Client) map[string]string {
 		out := map[string]string{}
@@ -90,18 +90,18 @@ func TestPremiumBodiesAreRedacted(t *testing.T) {
 	for name, c := range map[string]*http.Client{"anonymous": anon, "non-member": user} {
 		app.do(c, http.MethodPost, fmt.Sprintf("/prompts/%d/bookmark", older), nil, map[string]string{"HX-Request": "true"})
 		for path, body := range pages(c) {
-			if strings.Contains(body, secret) {
+			if strings.Contains(body, secret) || strings.Contains(body, "NEGATIVESECRET") {
 				t.Errorf("%s: %s leaks a premium body", name, path)
 			}
 		}
 		_, detail := app.get(c, fmt.Sprintf("/prompts/%d", older), false)
-		if !strings.Contains(detail, "This is a Premium prompt") || !strings.Contains(detail, "Rp49.000") || strings.Contains(detail, "data-copy") {
+		if !strings.Contains(detail, "This is a Premium image prompt") || !strings.Contains(detail, "Rp49.000") || strings.Contains(detail, "data-copy") {
 			t.Errorf("%s: detail page should show the unlock panel instead of the prompt", name)
 		}
 		if !strings.Contains(detail, "Older gem") || !strings.Contains(detail, "Teaser") {
 			t.Errorf("%s: title and description stay public", name)
 		}
-		if _, home := app.get(c, "/", false); !strings.Contains(home, "Unlock to view") || !strings.Contains(home, "tag-premium") {
+		if _, home := app.get(c, "/", false); !strings.Contains(home, "card-lock") || !strings.Contains(home, "tag-premium") {
 			t.Errorf("%s: cards should show the premium lock", name)
 		}
 		if _, res := app.get(c, "/?q=zebracorn", true); strings.Contains(res, "Older gem") {
@@ -111,11 +111,11 @@ func TestPremiumBodiesAreRedacted(t *testing.T) {
 
 	for name, c := range map[string]*http.Client{"member": app.member("member@example.com"), "admin": app.admin()} {
 		_, detail := app.get(c, fmt.Sprintf("/prompts/%d", older), false)
-		if !strings.Contains(detail, secret+" one") || !strings.Contains(detail, "data-copy") {
+		if !strings.Contains(detail, secret+" one") || !strings.Contains(detail, "NEGATIVESECRET one") || !strings.Contains(detail, `data-copy="#negative-body"`) {
 			t.Errorf("%s should see the premium body and copy button", name)
 		}
-		if _, home := app.get(c, "/", false); !strings.Contains(home, secret+" two") {
-			t.Errorf("%s should see premium snippets on cards", name)
+		if _, home := app.get(c, "/", false); strings.Contains(home, secret+" two") || strings.Contains(home, "NEGATIVESECRET") {
+			t.Errorf("%s cards must not contain prompt texts", name)
 		}
 		if _, res := app.get(c, "/?q=zebracorn", true); !strings.Contains(res, "Older gem") {
 			t.Errorf("%s should be able to search premium bodies", name)
@@ -126,7 +126,7 @@ func TestPremiumBodiesAreRedacted(t *testing.T) {
 func TestAdminCanTogglePremium(t *testing.T) {
 	app := newTestApp(t)
 	admin := app.admin()
-	body, ctype := multipartBody(t, map[string]string{"title": "Pro tip", "body": "secret sauce", "is_premium": "1"}, "", nil)
+	body, ctype := multipartBody(t, map[string]string{"model": "midjourney", "title": "Pro tip", "body": "secret sauce", "is_premium": "1"}, "test.png", pngBytes(t))
 	_, h, _ := app.do(admin, http.MethodPost, "/prompts", body, map[string]string{"Content-Type": ctype})
 	path := h.Get("Location")
 
@@ -137,7 +137,7 @@ func TestAdminCanTogglePremium(t *testing.T) {
 		t.Fatal("edit form should keep the premium box ticked")
 	}
 
-	body, ctype = multipartBody(t, map[string]string{"title": "Pro tip", "body": "secret sauce"}, "", nil)
+	body, ctype = multipartBody(t, map[string]string{"model": "midjourney", "title": "Pro tip", "body": "secret sauce"}, "", nil)
 	app.do(admin, http.MethodPost, path, body, map[string]string{"Content-Type": ctype})
 	if _, page := app.get(app.client(), path, false); !strings.Contains(page, "secret sauce") {
 		t.Fatal("unticking premium should make the prompt free")
@@ -163,7 +163,7 @@ func TestMembershipPage(t *testing.T) {
 
 func TestCheckoutAndStatusPoll(t *testing.T) {
 	app := newTestApp(t)
-	premium, _ := app.store.CreatePrompt(context.Background(), store.PromptInput{Title: "Gem", Body: "unlockable body", IsPremium: true})
+	premium, _ := app.store.CreatePrompt(context.Background(), store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "Gem", Body: "unlockable body", IsPremium: true})
 	buyer := app.signup("buyer@example.com")
 
 	orderID := app.checkout(buyer)
@@ -292,7 +292,7 @@ func TestPaymentsDisabled(t *testing.T) {
 
 func TestMidtransWebhook(t *testing.T) {
 	app := newTestApp(t)
-	premium, _ := app.store.CreatePrompt(context.Background(), store.PromptInput{Title: "Gem", Body: "webhook unlocked", IsPremium: true})
+	premium, _ := app.store.CreatePrompt(context.Background(), store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "Gem", Body: "webhook unlocked", IsPremium: true})
 	buyer := app.signup("hooked@example.com")
 	orderID := app.checkout(buyer)
 	settled := midtrans.Notification{

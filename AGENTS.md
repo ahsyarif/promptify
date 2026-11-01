@@ -16,6 +16,7 @@ Go + PostgreSQL + htmx prompt library. See README.md for the feature overview.
 - Use `isPartialRequest` to decide between a fragment and a full page. History-restore requests need the full page. List responses set `Vary: HX-Request`.
 - Migrations are numbered SQL files in `internal/db/migrations/`. They're applied once, in order, at startup. Never edit an applied migration. Add a new file instead.
 - Search uses `store.PrefixTSQuery`, which strips everything except letters and digits. Keep user input out of raw tsquery syntax.
+- Every prompt requires an example image (DB CHECK and form validation). Models and aspect ratios are defined in `internal/server/imagemeta.go`.
 - Uploaded images get random names. Their type comes from file content (`http.DetectContentType`). Clean up the file whenever the DB write fails or the image is replaced or removed.
 - CSP allows only `'self'` scripts, so don't add inline scripts or `hx-on` attributes. Put behaviour in `web/static/js/app.js`.
 - Layout width comes from `--container-width` and `--gutter` in `style.css`. The card `.grid` uses explicit column counts (3, then 2 at ≤1024px, then 1 at ≤640px), not `auto-fill`, which would add columns as the container widens. Grid tracks are `minmax(0, 1fr)` and user text uses `overflow-wrap: anywhere`, so long words can't cause horizontal scrolling.
@@ -23,7 +24,7 @@ Go + PostgreSQL + htmx prompt library. See README.md for the feature overview.
 ## Accounts, roles and payments
 
 - Logged-in users come from `currentUser(r)` (set by `withUser`). Admins are `Config.AdminEmails`, compared case-insensitively through `s.isAdmin`. Every content mutation handler must start with `requireAdmin`.
-- Premium bodies are hidden only through `s.redact`. Call it on every prompt you render, including new listing pages. Listings also set `ListParams.HidePremiumBodies` so search can't probe hidden text.
+- Premium bodies and negative prompts are hidden only through `s.redact`, which must clear both `Body` and `NegativePrompt`. Call it on every prompt you render, including new listing pages. Listings also set `ListParams.HidePremiumBodies` so search can't probe hidden text.
 - Payment state changes only through `store.ApplyOrderStatus`. It's idempotent, never downgrades `paid`, and sets `users.member_since` in the same transaction.
 - `POST /payments/midtrans/notification` (`webhookPattern`) is the only route exempt from `http.CrossOriginProtection`. It's authenticated by signature and amount instead.
 - Redirect targets taken from user input (`next`) must go through `safeNext`.

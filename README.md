@@ -1,14 +1,15 @@
 # promptify
 
-A minimalist prompt library built with **Go**, **PostgreSQL** and **htmx**.
+A minimalist image prompt library for **Midjourney**, **Stable Diffusion**, **DALL·E** and **Flux**, built with **Go**, **PostgreSQL** and **htmx**.
 
 - **Search**: live, prefix-matching full-text search (PostgreSQL `tsvector`, ranked by title > description > body)
 - **Categories**: filter chips on the library page, a categories overview, and a form to add new ones
-- **Images**: optional image per prompt (JPEG, PNG, GIF or WebP up to 5 MB, type detected from file content)
+- **Image gallery**: every prompt requires an example image (JPEG, PNG, GIF or WebP up to 5 MB, type detected from file content). Uniform square crops in a responsive 3-, 2- or 1-column gallery; uncropped images on the two-column detail page
+- **Generation settings**: required model, optional aspect ratio and negative prompt, with separate copy buttons for both prompt texts
 - **Bookmarks**: save prompts with one click; saved prompts live on their own searchable page
 - `{{placeholders}}` in prompts are highlighted, and each prompt has a copy-to-clipboard button
 - **Accounts**: sign up with email and password, or continue with Google
-- **Premium prompts and lifetime membership**: admins can mark a prompt Premium. Its title, description and image stay public, but only members can read the prompt text. Membership is a one-time payment by QRIS (GoPay, OVO, DANA, ShopeePay, mobile banking) through Midtrans
+- **Premium prompts and lifetime membership**: admins can mark a prompt Premium. Its title, description and image stay public, but only members can read the prompt and negative prompt. Membership is a one-time payment by QRIS (GoPay, OVO, DANA, ShopeePay, mobile banking) through Midtrans
 - **Admins**: only accounts listed in `ADMIN_EMAILS` can add, edit or delete prompts and add categories
 
 Browsing, searching and bookmarking need no account. Bookmarks are tied to an anonymous, random `visitor_id` cookie, so they're per browser. You only need to log in to buy a membership.
@@ -19,7 +20,7 @@ Browsing, searching and bookmarking need no account. Bookmarks are tied to an an
 docker compose up --build
 ```
 
-Open <http://localhost:8080>. Migrations and starter prompts are applied automatically on boot.
+Open <http://localhost:8080>. Migrations are applied automatically on boot. The library starts empty with six image-style categories: Photography, Illustration, 3D & Render, Anime & Manga, Logo & Icon, and Architecture & Interior. Admins upload prompts and their example images.
 
 To manage content, put your email in `ADMIN_EMAILS` and sign up with it. Compose reads variables from a `.env` file next to `docker-compose.yml`:
 
@@ -29,6 +30,12 @@ MIDTRANS_SERVER_KEY=SB-Mid-server-...   # optional, enables payments
 GOOGLE_CLIENT_ID=...                    # optional, enables Google login
 GOOGLE_CLIENT_SECRET=...
 ```
+
+## Upgrading an existing library
+
+**Back up your database before starting this version.** Migration `004_image_library.sql` permanently deletes all existing prompts, their bookmarks and all categories. It replaces the categories with the six image styles and requires an example image for every new prompt. Users, sessions, orders and lifetime memberships are preserved. The reset runs once, during startup; subsequent restarts keep your new content.
+
+The database migration cannot delete files. Old image files in `UPLOAD_DIR` (the Docker `uploads` volume) become orphaned after the reset. After backing them up, you can remove those old files manually. Do this before uploading new prompts, or identify only unreferenced files so that new example images are not deleted.
 
 ## Local development
 

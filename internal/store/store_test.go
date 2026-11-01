@@ -10,6 +10,10 @@ import (
 	"github.com/ahsyarif/promptify/internal/testdb"
 )
 
+func testPrompt(title string) store.PromptInput {
+	return store.PromptInput{Title: title, Body: "b", ImagePath: "test.png", Model: "midjourney"}
+}
+
 func TestPrefixTSQuery(t *testing.T) {
 	cases := map[string]string{
 		"":                       "",
@@ -69,8 +73,8 @@ func TestListPrompts(t *testing.T) {
 		}
 		return id
 	}
-	zebraID := mustCreate(store.PromptInput{Title: "Zebra stripes", Body: "Describe the pattern", CategoryID: &cat.ID})
-	mustCreate(store.PromptInput{Title: "Unrelated", Body: "Something about zebras in the body", CategoryID: &cat.ID})
+	zebraID := mustCreate(store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "Zebra stripes", Body: "Describe the pattern", CategoryID: &cat.ID})
+	mustCreate(store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "Unrelated", Body: "Something about zebras in the body", CategoryID: &cat.ID})
 
 	t.Run("full-text search ranks title matches first", func(t *testing.T) {
 		ps, _, err := st.ListPrompts(ctx, store.ListParams{Query: "zebra", Limit: 10})
@@ -134,7 +138,7 @@ func TestListPromptsPagination(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := range 5 {
-		if _, err := st.CreatePrompt(ctx, store.PromptInput{Title: fmt.Sprintf("P%d", i), Body: "b", CategoryID: &cat.ID}); err != nil {
+		if _, err := st.CreatePrompt(ctx, store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: fmt.Sprintf("P%d", i), Body: "b", CategoryID: &cat.ID}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -168,7 +172,7 @@ func TestListPromptsPagination(t *testing.T) {
 func TestBookmarks(t *testing.T) {
 	ctx := context.Background()
 	st := store.New(testdb.New(t))
-	id, err := st.CreatePrompt(ctx, store.PromptInput{Title: "Keep me", Body: "b"})
+	id, err := st.CreatePrompt(ctx, testPrompt("Keep me"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +225,7 @@ func TestBookmarks(t *testing.T) {
 func TestCreateCategoryConflict(t *testing.T) {
 	ctx := context.Background()
 	st := store.New(testdb.New(t))
-	if _, err := st.CreateCategory(ctx, "Writing", ""); !errors.Is(err, store.ErrConflict) {
+	if _, err := st.CreateCategory(ctx, "Photography", ""); !errors.Is(err, store.ErrConflict) {
 		t.Fatalf("duplicate seeded category: err = %v, want ErrConflict", err)
 	}
 }
@@ -232,7 +236,7 @@ func TestPromptNotFound(t *testing.T) {
 	if _, err := st.GetPrompt(ctx, 999999, ""); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("GetPrompt: %v", err)
 	}
-	if err := st.UpdatePrompt(ctx, 999999, store.PromptInput{Title: "x", Body: "y"}); !errors.Is(err, store.ErrNotFound) {
+	if err := st.UpdatePrompt(ctx, 999999, store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "x", Body: "y"}); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("UpdatePrompt: %v", err)
 	}
 	if _, err := st.DeletePrompt(ctx, 999999); !errors.Is(err, store.ErrNotFound) {

@@ -1,51 +1,63 @@
 {{define "content"}}
-<article class="detail">
-  <a href="/" class="back">← Library</a>
-
-  <header class="detail-header">
-    <div>
-      {{if .Prompt.CategoryName}}<a class="tag" href="/?category={{.Prompt.CategorySlug}}">{{.Prompt.CategoryName}}</a>{{end}}
-      {{if .Prompt.IsPremium}}<span class="tag tag-premium">Premium</span>{{end}}
-      <h1>{{.Prompt.Title}}</h1>
-      {{if .Prompt.Description}}<p class="lead">{{.Prompt.Description}}</p>{{end}}
-    </div>
-    {{template "bookmark-btn" .Prompt}}
-  </header>
-
-  {{if .Prompt.ImagePath}}
-  <figure class="detail-image">
-    <img src="{{imageURL .Prompt.ImagePath}}" alt="Example for {{.Prompt.Title}}">
+<a href="/" class="back">← Library</a>
+<article class="detail-media">
+  <figure class="detail-media-image">
+    <img src="{{imageURL .Prompt.ImagePath}}" alt="Example image for {{.Prompt.Title}}">
   </figure>
-  {{end}}
 
-  {{if .Prompt.Locked}}
-  <section class="unlock-panel">
-    {{template "lock-icon"}}
-    <h2>This is a Premium prompt</h2>
-    <p class="muted">Get lifetime access to every Premium prompt for a one-time {{idr .Price}}.</p>
-    <a href="/membership" class="btn btn-primary">Unlock all prompts</a>
-  </section>
-  {{else}}
-  <section class="prompt-box">
-    <div class="prompt-box-bar">
-      <span>Prompt</span>
-      <button type="button" class="btn btn-small" data-copy="#prompt-body">Copy</button>
-    </div>
-    <pre id="prompt-body">{{highlightVars .Prompt.Body}}</pre>
-  </section>
-  {{end}}
+  <div class="detail-media-info">
+    <header class="detail-header">
+      <div>
+        {{if .Prompt.CategoryName}}<a class="tag" href="/?category={{.Prompt.CategorySlug}}">{{.Prompt.CategoryName}}</a>{{end}}
+        {{if .Prompt.IsPremium}}<span class="tag tag-premium">Premium</span>{{end}}
+        <h1>{{.Prompt.Title}}</h1>
+        {{if .Prompt.Description}}<p class="lead">{{.Prompt.Description}}</p>{{end}}
+      </div>
+      {{template "bookmark-btn" .Prompt}}
+    </header>
 
-  <footer class="detail-actions">
-    <span class="muted">Updated {{.Prompt.UpdatedAt.Format "Jan 2, 2006"}}</span>
+    <dl class="specs">
+      <dt>Model</dt><dd>{{modelLabel .Prompt.Model}}</dd>
+      {{with .Prompt.AspectRatio}}<dt>Aspect ratio</dt><dd>{{.}}</dd>{{end}}
+      {{with .Prompt.CategoryName}}<dt>Category</dt><dd>{{.}}</dd>{{end}}
+      <dt>Updated</dt><dd>{{.Prompt.UpdatedAt.Format "Jan 2, 2006"}}</dd>
+    </dl>
+
+    {{if .Prompt.Locked}}
+    <section class="unlock-panel">
+      {{template "lock-icon"}}
+      <h2>This is a Premium image prompt</h2>
+      <p class="muted">Unlock the prompt and negative prompt with lifetime access to every Premium image prompt for a one-time {{idr .Price}}.</p>
+      <a href="/membership" class="btn btn-primary">Unlock all prompts</a>
+    </section>
+    {{else}}
+    <section class="prompt-box">
+      <div class="prompt-box-bar">
+        <span>Prompt</span>
+        <button type="button" class="btn btn-small" data-copy="#prompt-body">Copy</button>
+      </div>
+      <pre id="prompt-body">{{highlightVars .Prompt.Body}}</pre>
+    </section>
+    {{if .Prompt.NegativePrompt}}
+    <section class="prompt-box">
+      <div class="prompt-box-bar">
+        <span>Negative prompt</span>
+        <button type="button" class="btn btn-small" data-copy="#negative-body">Copy</button>
+      </div>
+      <pre id="negative-body">{{.Prompt.NegativePrompt}}</pre>
+    </section>
+    {{end}}
+    {{end}}
+
     {{if .IsAdmin}}
-    <div class="row">
+    <footer class="detail-actions">
       <a href="/prompts/{{.Prompt.ID}}/edit" class="btn btn-small">Edit</a>
       <form method="post" action="/prompts/{{.Prompt.ID}}/delete"
             hx-post="/prompts/{{.Prompt.ID}}/delete" hx-confirm="Delete “{{.Prompt.Title}}”? This cannot be undone.">
         <button type="submit" class="btn btn-small btn-danger">Delete</button>
       </form>
-    </div>
+    </footer>
     {{end}}
-  </footer>
+  </div>
 </article>
 {{end}}

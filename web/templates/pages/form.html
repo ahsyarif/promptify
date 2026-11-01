@@ -6,15 +6,33 @@
   <form class="stack" method="post" enctype="multipart/form-data"
         action="{{if .Prompt.ID}}/prompts/{{.Prompt.ID}}{{else}}/prompts{{end}}">
     <div class="field">
+      <label for="image">Example image</label>
+      <p class="hint">JPEG, PNG, GIF or WebP up to 5 MB</p>
+      {{if .Form.ImagePath}}
+      <div class="current-image">
+        <img src="{{imageURL .Form.ImagePath}}" alt="Current image">
+        <p class="hint">Upload a new file to replace it.</p>
+      </div>
+      {{end}}
+      <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/gif,image/webp" data-preview="#image-preview" {{if not .Form.ImagePath}}required{{end}} {{if .Errors.image}}aria-invalid="true"{{end}}>
+      <img id="image-preview" class="image-preview" alt="Selected image preview" hidden>
+      {{with .Errors.image}}<p class="error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="field">
       <label for="title">Title</label>
       <input id="title" name="title" value="{{.Form.Title}}" maxlength="200" required {{if .Errors.title}}aria-invalid="true"{{end}}>
       {{with .Errors.title}}<p class="error">{{.}}</p>{{end}}
     </div>
 
+
     <div class="field">
-      <label for="description">Short description <span class="muted">optional</span></label>
-      <input id="description" name="description" value="{{.Form.Description}}" maxlength="500" {{if .Errors.description}}aria-invalid="true"{{end}}>
-      {{with .Errors.description}}<p class="error">{{.}}</p>{{end}}
+      <label for="model">Model</label>
+      <select id="model" name="model" required {{if .Errors.model}}aria-invalid="true"{{end}}>
+        <option value="">Choose a model…</option>
+        {{range imageModels}}<option value="{{.Value}}" {{if eq .Value $.Form.Model}}selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+      {{with .Errors.model}}<p class="error">{{.}}</p>{{end}}
     </div>
 
     <div class="field">
@@ -35,25 +53,36 @@
       {{with .Errors.body}}<p class="error">{{.}}</p>{{end}}
     </div>
 
+
     <div class="field">
-      <label for="image">Image <span class="muted">optional · JPEG, PNG, GIF or WebP up to 5 MB</span></label>
-      {{if .Form.ImagePath}}
-      <div class="current-image">
-        <img src="{{imageURL .Form.ImagePath}}" alt="Current image">
-        <label class="checkbox"><input type="checkbox" name="remove_image" value="1"> Remove image</label>
-      </div>
-      {{end}}
-      <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/gif,image/webp" data-preview="#image-preview" {{if .Errors.image}}aria-invalid="true"{{end}}>
-      <img id="image-preview" class="image-preview" alt="Selected image preview" hidden>
-      {{with .Errors.image}}<p class="error">{{.}}</p>{{end}}
+      <label for="negative_prompt">Negative prompt <span class="muted">optional</span></label>
+      <textarea id="negative_prompt" name="negative_prompt" rows="4" maxlength="5000" class="mono" {{if .Errors.negative_prompt}}aria-invalid="true"{{end}}>{{.Form.NegativePrompt}}</textarea>
+      <p class="hint">Things the model should avoid.</p>
+      {{with .Errors.negative_prompt}}<p class="error">{{.}}</p>{{end}}
     </div>
 
     <div class="field">
-      <label class="checkbox"><input type="checkbox" name="is_premium" value="1" {{if .Form.IsPremium}}checked{{end}}> Premium <span class="muted">· only members can see the prompt text</span></label>
+      <label for="aspect_ratio">Aspect ratio <span class="muted">optional</span></label>
+      <select id="aspect_ratio" name="aspect_ratio" {{if .Errors.aspect_ratio}}aria-invalid="true"{{end}}>
+        <option value="">Not specified</option>
+        {{range aspectRatios}}<option value="{{.}}" {{if eq . $.Form.AspectRatio}}selected{{end}}>{{.}}</option>{{end}}
+      </select>
+      {{with .Errors.aspect_ratio}}<p class="error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="field">
+      <label for="description">Short description <span class="muted">optional</span></label>
+      <input id="description" name="description" value="{{.Form.Description}}" maxlength="500" {{if .Errors.description}}aria-invalid="true"{{end}}>
+      {{with .Errors.description}}<p class="error">{{.}}</p>{{end}}
+    </div>
+
+
+    <div class="field">
+      <label class="checkbox"><input type="checkbox" name="is_premium" value="1" {{if .Form.IsPremium}}checked{{end}}> Premium <span class="muted">· only members can see the prompt and negative prompt</span></label>
     </div>
 
     <div class="row">
-      <button type="submit" class="btn btn-primary">{{if .Prompt.ID}}Save changes{{else}}Create prompt{{end}}</button>
+      <button type="submit" class="btn btn-primary">{{if .Prompt.ID}}Save changes{{else}}Publish prompt{{end}}</button>
       <a href="{{if .Prompt.ID}}/prompts/{{.Prompt.ID}}{{else}}/{{end}}" class="btn btn-ghost">Cancel</a>
     </div>
   </form>

@@ -56,12 +56,15 @@ type viewData struct {
 }
 
 type promptForm struct {
-	Title       string
-	Description string
-	Body        string
-	CategoryID  string
-	ImagePath   string
-	IsPremium   bool
+	Title          string
+	Description    string
+	Body           string
+	CategoryID     string
+	ImagePath      string
+	Model          string
+	NegativePrompt string
+	AspectRatio    string
+	IsPremium      bool
 }
 
 // isPartialRequest reports whether htmx asked for a fragment. History-restore
@@ -97,7 +100,7 @@ func (s *Server) baseData(r *http.Request, title, nav string) (viewData, error) 
 	return data, nil
 }
 
-// redact hides premium bodies from viewers who may not see them. Every
+// redact hides premium prompt texts from viewers who may not see them. Every
 // handler that renders prompts must pass them through here first.
 func (s *Server) redact(viewer *store.User, ps ...*store.Prompt) {
 	if s.canViewPremium(viewer) {
@@ -106,6 +109,7 @@ func (s *Server) redact(viewer *store.User, ps ...*store.Prompt) {
 	for _, p := range ps {
 		if p.IsPremium {
 			p.Body = ""
+			p.NegativePrompt = ""
 			p.Locked = true
 		}
 	}
@@ -190,9 +194,9 @@ func (s *Server) listPrompts(w http.ResponseWriter, r *http.Request, basePath st
 	case query != "" || category != "":
 		data.EmptyTitle, data.EmptyText = "No matches", "Try a different search term or category."
 	case data.IsAdmin:
-		data.EmptyTitle, data.EmptyText = "The library is empty", "Add the first prompt to get started."
+		data.EmptyTitle, data.EmptyText = "No image prompts yet", "Upload the first prompt to get started."
 	default:
-		data.EmptyTitle, data.EmptyText = "No prompts yet", "Check back soon."
+		data.EmptyTitle, data.EmptyText = "No image prompts yet", "Check back soon."
 	}
 
 	w.Header().Add("Vary", "HX-Request")
@@ -205,7 +209,7 @@ func (s *Server) listPrompts(w http.ResponseWriter, r *http.Request, basePath st
 		return
 	}
 
-	title, nav := "Prompt library", "library"
+	title, nav := "Image prompt library", "library"
 	if bookmarkedOnly {
 		title, nav = "Saved prompts", "bookmarks"
 	}
@@ -280,7 +284,11 @@ func (s *Server) handleEditPrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data.Prompt = p
-	data.Form = promptForm{Title: p.Title, Description: p.Description, Body: p.Body, ImagePath: p.ImagePath, IsPremium: p.IsPremium}
+	data.Form = promptForm{
+		Title: p.Title, Description: p.Description, Body: p.Body,
+		ImagePath: p.ImagePath, IsPremium: p.IsPremium,
+		Model: p.Model, NegativePrompt: p.NegativePrompt, AspectRatio: p.AspectRatio,
+	}
 	if p.CategoryID != nil {
 		data.Form.CategoryID = strconv.FormatInt(*p.CategoryID, 10)
 	}
@@ -291,7 +299,7 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		return
 	}
-	form, input, errs, err := s.parsePromptForm(w, r)
+	form, input, errs, err := s.parsePromptForm(w, r, true)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -333,7 +341,7 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	form, input, errs, err := s.parsePromptForm(w, r)
+	form, input, errs, err := s.parsePromptForm(w, r, false)
 	if err != nil {
 		s.serverError(w, r, err)
 		return

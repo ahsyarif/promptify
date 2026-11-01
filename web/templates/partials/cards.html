@@ -1,13 +1,8 @@
 {{define "card"}}
 <article class="card">
   <a href="/prompts/{{.ID}}" class="card-media" tabindex="-1" aria-hidden="true">
-    {{if .ImagePath}}
-      <img src="{{imageURL .ImagePath}}" alt="" loading="lazy">
-    {{else if .Locked}}
-      <span class="card-locked">{{template "lock-icon"}}<span>Premium · Unlock to view</span></span>
-    {{else}}
-      <span class="card-snippet">{{excerpt .Body 180}}</span>
-    {{end}}
+    <img src="{{imageURL .ImagePath}}" alt="{{.Title}}" loading="lazy">
+    {{if .Locked}}<span class="card-lock">{{template "lock-icon"}} Premium</span>{{end}}
   </a>
   <div class="card-body">
     <div class="card-meta">
@@ -18,7 +13,7 @@
       {{template "bookmark-btn" .}}
     </div>
     <h3 class="card-title"><a href="/prompts/{{.ID}}">{{.Title}}</a></h3>
-    {{if .Description}}<p class="card-text">{{excerpt .Description 140}}</p>{{end}}
+    <p class="card-specs">{{modelLabel .Model}}{{with .AspectRatio}} · {{.}}{{end}}</p>
   </div>
 </article>
 {{end}}

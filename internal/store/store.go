@@ -29,31 +29,37 @@ type Category struct {
 }
 
 type Prompt struct {
-	ID           int64
-	Title        string
-	Description  string
-	Body         string
-	CategoryID   *int64
-	CategoryName string
-	CategorySlug string
-	ImagePath    string
-	IsPremium    bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	Bookmarked   bool
+	ID             int64
+	Title          string
+	Description    string
+	Body           string
+	CategoryID     *int64
+	CategoryName   string
+	CategorySlug   string
+	ImagePath      string
+	Model          string
+	NegativePrompt string
+	AspectRatio    string
+	IsPremium      bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	Bookmarked     bool
 
 	// Locked is set by the server when the viewer may not see a premium
-	// body, which has then been cleared. It is not stored.
+	// body and negative prompt, which have then been cleared. It is not stored.
 	Locked bool
 }
 
 type PromptInput struct {
-	Title       string
-	Description string
-	Body        string
-	CategoryID  *int64
-	ImagePath   string
-	IsPremium   bool
+	Title          string
+	Description    string
+	Body           string
+	CategoryID     *int64
+	ImagePath      string
+	Model          string
+	NegativePrompt string
+	AspectRatio    string
+	IsPremium      bool
 }
 
 type User struct {

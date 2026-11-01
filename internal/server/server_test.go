@@ -30,6 +30,10 @@ const (
 	testPrice    = 49000
 )
 
+func testPrompt(title string) store.PromptInput {
+	return store.PromptInput{Title: title, Body: "b", ImagePath: "test.png", Model: "midjourney"}
+}
+
 func TestMain(m *testing.M) {
 	// Real hashes take ~0.2s each; tests only need the format to be right.
 	passwordIterations = 1000
@@ -198,24 +202,29 @@ func uploadedFiles(t *testing.T, dir string) []string {
 func TestIndexFullPageAndPartial(t *testing.T) {
 	app := newTestApp(t)
 	c := app.client()
+	for _, title := range []string{"Neon city skyline", "Watercolour fox"} {
+		if _, err := app.store.CreatePrompt(context.Background(), store.PromptInput{Title: title, Body: "image prompt", ImagePath: "test.png", Model: "stable-diffusion"}); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	code, body := app.get(c, "/", false)
 	if code != http.StatusOK || !strings.Contains(body, "<!doctype html>") || !strings.Contains(body, `id="results"`) {
 		t.Fatalf("full page: code=%d, missing layout or results container", code)
 	}
 
-	code, body = app.get(c, "/?q=sql", true)
+	code, body = app.get(c, "/?q=neon", true)
 	if code != http.StatusOK {
 		t.Fatalf("partial: code=%d", code)
 	}
 	if strings.Contains(body, "<!doctype html>") {
 		t.Fatal("htmx request should get a fragment, not the full layout")
 	}
-	if !strings.Contains(body, "SQL query builder") || strings.Contains(body, "Feynman tutor") {
+	if !strings.Contains(body, "Neon city skyline") || strings.Contains(body, "Watercolour fox") {
 		t.Fatalf("search results wrong:\n%s", body)
 	}
 
-	_, h, body := app.do(c, http.MethodGet, "/?q=sql", nil, map[string]string{"HX-Request": "true", "HX-History-Restore-Request": "true"})
+	_, h, body := app.do(c, http.MethodGet, "/?q=neon", nil, map[string]string{"HX-Request": "true", "HX-History-Restore-Request": "true"})
 	if !strings.Contains(body, "<!doctype html>") {
 		t.Fatal("history restore requests need the full page")
 	}
@@ -232,12 +241,15 @@ func TestIndexFullPageAndPartial(t *testing.T) {
 func TestCategoryFilterAndLoadMore(t *testing.T) {
 	app := newTestApp(t)
 	ctx := context.Background()
+	if _, err := app.store.CreatePrompt(ctx, store.PromptInput{Title: "Watercolour fox", Body: "other category", ImagePath: "test.png", Model: "flux"}); err != nil {
+		t.Fatal(err)
+	}
 	cat, err := app.store.CreateCategory(ctx, "Bulk", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for i := range pageSize + 3 {
-		if _, err := app.store.CreatePrompt(ctx, store.PromptInput{Title: fmt.Sprintf("Bulk prompt %02d", i), Body: "b", CategoryID: &cat.ID}); err != nil {
+		if _, err := app.store.CreatePrompt(ctx, store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: fmt.Sprintf("Bulk prompt %02d", i), Body: "b", CategoryID: &cat.ID}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -247,7 +259,7 @@ func TestCategoryFilterAndLoadMore(t *testing.T) {
 	if n := strings.Count(first, `class="card"`); n != pageSize {
 		t.Fatalf("first page has %d cards, want %d", n, pageSize)
 	}
-	if strings.Contains(first, "Feynman tutor") {
+	if strings.Contains(first, "Watercolour fox") {
 		t.Fatal("category filter leaked prompts from other categories")
 	}
 	next := fmt.Sprintf(`hx-get="/?category=bulk&amp;offset=%d"`, pageSize)
@@ -272,6 +284,7 @@ func TestCreatePromptWithImage(t *testing.T) {
 	c := app.admin()
 
 	body, ctype := multipartBody(t, map[string]string{
+		"model": "midjourney",
 		"title": "Sunset painting",
 		"body":  "Paint a {{style}} sunset over <the> sea",
 	}, "sunset.png", pngBytes(t))
@@ -315,12 +328,12 @@ func TestCreatePromptValidation(t *testing.T) {
 		file     []byte
 		wantText string
 	}{
-		{"missing title", map[string]string{"body": "x"}, nil, "Title is required."},
-		{"missing body", map[string]string{"title": "x"}, nil, "Prompt text is required."},
-		{"unknown category", map[string]string{"title": "x", "body": "y", "category_id": "424242"}, nil, "Choose a valid category."},
-		{"non-numeric category", map[string]string{"title": "x", "body": "y", "category_id": "abc"}, nil, "Choose a valid category."},
-		{"title too long", map[string]string{"title": strings.Repeat("a", 201), "body": "y"}, nil, "200 characters"},
-		{"fake image", map[string]string{"title": "x", "body": "y"}, []byte("<html>not an image</html>"), msgInvalidImage},
+		{"missing title", map[string]string{"model": "midjourney", "body": "x"}, nil, "Title is required."},
+		{"missing body", map[string]string{"model": "midjourney", "title": "x"}, nil, "Prompt text is required."},
+		{"unknown category", map[string]string{"model": "midjourney", "title": "x", "body": "y", "category_id": "424242"}, nil, "Choose a valid category."},
+		{"non-numeric category", map[string]string{"model": "midjourney", "title": "x", "body": "y", "category_id": "abc"}, nil, "Choose a valid category."},
+		{"title too long", map[string]string{"model": "midjourney", "title": strings.Repeat("a", 201), "body": "y"}, nil, "200 characters"},
+		{"fake image", map[string]string{"model": "midjourney", "title": "x", "body": "y"}, []byte("<html>not an image</html>"), msgInvalidImage},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -347,7 +360,7 @@ func TestOversizedUpload(t *testing.T) {
 	app := newTestApp(t)
 	c := app.admin()
 	big := append(pngBytes(t), make([]byte, maxRequestBytes)...)
-	body, ctype := multipartBody(t, map[string]string{"title": "x", "body": "y"}, "big.png", big)
+	body, ctype := multipartBody(t, map[string]string{"model": "midjourney", "title": "x", "body": "y"}, "big.png", big)
 	code, _, page := app.do(c, http.MethodPost, "/prompts", body, map[string]string{"Content-Type": ctype})
 	if code != http.StatusUnprocessableEntity || !strings.Contains(page, msgImageTooLarge) {
 		t.Fatalf("code=%d, want 422 with size error", code)
@@ -358,12 +371,12 @@ func TestUpdateAndDeleteManageImages(t *testing.T) {
 	app := newTestApp(t)
 	c := app.admin()
 
-	body, ctype := multipartBody(t, map[string]string{"title": "Original", "body": "b"}, "a.png", pngBytes(t))
+	body, ctype := multipartBody(t, map[string]string{"model": "midjourney", "title": "Original", "body": "b"}, "a.png", pngBytes(t))
 	_, h, _ := app.do(c, http.MethodPost, "/prompts", body, map[string]string{"Content-Type": ctype})
 	path := h.Get("Location")
 	original := uploadedFiles(t, app.uploadDir)
 
-	body, ctype = multipartBody(t, map[string]string{"title": "Renamed", "body": "b"}, "", nil)
+	body, ctype = multipartBody(t, map[string]string{"model": "midjourney", "title": "Renamed", "body": "b"}, "", nil)
 	if code, _, _ := app.do(c, http.MethodPost, path, body, map[string]string{"Content-Type": ctype}); code != http.StatusSeeOther {
 		t.Fatalf("update without image: code=%d", code)
 	}
@@ -374,21 +387,12 @@ func TestUpdateAndDeleteManageImages(t *testing.T) {
 		t.Fatal("title was not updated")
 	}
 
-	body, ctype = multipartBody(t, map[string]string{"title": "Renamed", "body": "b"}, "b.png", pngBytes(t))
+	body, ctype = multipartBody(t, map[string]string{"model": "midjourney", "title": "Renamed", "body": "b"}, "b.png", pngBytes(t))
 	app.do(c, http.MethodPost, path, body, map[string]string{"Content-Type": ctype})
 	replaced := uploadedFiles(t, app.uploadDir)
 	if len(replaced) != 1 || replaced[0] == original[0] {
 		t.Fatalf("replacing the image should delete the old file, files=%v", replaced)
 	}
-
-	body, ctype = multipartBody(t, map[string]string{"title": "Renamed", "body": "b", "remove_image": "1"}, "", nil)
-	app.do(c, http.MethodPost, path, body, map[string]string{"Content-Type": ctype})
-	if files := uploadedFiles(t, app.uploadDir); len(files) != 0 {
-		t.Fatalf("remove_image should delete the file, files=%v", files)
-	}
-
-	body, ctype = multipartBody(t, map[string]string{"title": "Renamed", "body": "b"}, "c.png", pngBytes(t))
-	app.do(c, http.MethodPost, path, body, map[string]string{"Content-Type": ctype})
 
 	code, h, _ := app.do(c, http.MethodPost, path+"/delete", nil, map[string]string{"HX-Request": "true"})
 	if code != http.StatusNoContent || h.Get("HX-Redirect") != "/" {
@@ -404,7 +408,7 @@ func TestUpdateAndDeleteManageImages(t *testing.T) {
 
 func TestBookmarkFlow(t *testing.T) {
 	app := newTestApp(t)
-	id, err := app.store.CreatePrompt(context.Background(), store.PromptInput{Title: "Bookmark me", Body: "b"})
+	id, err := app.store.CreatePrompt(context.Background(), testPrompt("Bookmark me"))
 	if err != nil {
 		t.Fatal(err)
 	}

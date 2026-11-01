@@ -224,21 +224,21 @@ func TestPremiumFlagAndSearch(t *testing.T) {
 	ctx := context.Background()
 	st := store.New(testdb.New(t))
 
-	id, err := st.CreatePrompt(ctx, store.PromptInput{Title: "Hidden gem", Description: "Public teaser", Body: "zanzibar secret quixotry", IsPremium: true})
+	id, err := st.CreatePrompt(ctx, store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "Hidden gem", Description: "Public teaser", Body: "zanzibar secret quixotry", IsPremium: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if p, _ := st.GetPrompt(ctx, id, "v"); !p.IsPremium {
 		t.Fatal("is_premium should round-trip through create")
 	}
-	if err := st.UpdatePrompt(ctx, id, store.PromptInput{Title: "Hidden gem", Body: "zanzibar secret quixotry", IsPremium: false}); err != nil {
+	if err := st.UpdatePrompt(ctx, id, store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "Hidden gem", Body: "zanzibar secret quixotry", IsPremium: false}); err != nil {
 		t.Fatal(err)
 	}
 	if p, _ := st.GetPrompt(ctx, id, "v"); p.IsPremium {
 		t.Fatal("is_premium should round-trip through update")
 	}
-	st.UpdatePrompt(ctx, id, store.PromptInput{Title: "Hidden gem", Description: "Public teaser", Body: "zanzibar secret quixotry", IsPremium: true})
-	st.CreatePrompt(ctx, store.PromptInput{Title: "Free one", Body: "zanzibar for everyone"})
+	st.UpdatePrompt(ctx, id, store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "Hidden gem", Description: "Public teaser", Body: "zanzibar secret quixotry", IsPremium: true})
+	st.CreatePrompt(ctx, store.PromptInput{ImagePath: "test.png", Model: "midjourney", Title: "Free one", Body: "zanzibar for everyone"})
 
 	search := func(q string, hide bool) []string {
 		t.Helper()
