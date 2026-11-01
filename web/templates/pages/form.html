@@ -1,0 +1,57 @@
+{{define "content"}}
+<section class="narrow">
+  <a href="{{if .Prompt.ID}}/prompts/{{.Prompt.ID}}{{else}}/{{end}}" class="back">← Back</a>
+  <h1>{{.Title}}</h1>
+
+  <form class="stack" method="post" enctype="multipart/form-data"
+        action="{{if .Prompt.ID}}/prompts/{{.Prompt.ID}}{{else}}/prompts{{end}}">
+    <div class="field">
+      <label for="title">Title</label>
+      <input id="title" name="title" value="{{.Form.Title}}" maxlength="200" required {{if .Errors.title}}aria-invalid="true"{{end}}>
+      {{with .Errors.title}}<p class="error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="field">
+      <label for="description">Short description <span class="muted">optional</span></label>
+      <input id="description" name="description" value="{{.Form.Description}}" maxlength="500" {{if .Errors.description}}aria-invalid="true"{{end}}>
+      {{with .Errors.description}}<p class="error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="field">
+      <label for="category_id">Category</label>
+      <select id="category_id" name="category_id" {{if .Errors.category_id}}aria-invalid="true"{{end}}>
+        <option value="">Uncategorised</option>
+        {{range .Categories}}
+        <option value="{{.ID}}" {{if eq (printf "%d" .ID) $.Form.CategoryID}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+      {{with .Errors.category_id}}<p class="error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="field">
+      <label for="body">Prompt</label>
+      <textarea id="body" name="body" rows="12" maxlength="20000" required class="mono" {{if .Errors.body}}aria-invalid="true"{{end}}>{{.Form.Body}}</textarea>
+      <p class="hint">Use <code>{{"{{"}}placeholders{{"}}"}}</code> for parts people should fill in.</p>
+      {{with .Errors.body}}<p class="error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="field">
+      <label for="image">Image <span class="muted">optional · JPEG, PNG, GIF or WebP up to 5 MB</span></label>
+      {{if .Form.ImagePath}}
+      <div class="current-image">
+        <img src="{{imageURL .Form.ImagePath}}" alt="Current image">
+        <label class="checkbox"><input type="checkbox" name="remove_image" value="1"> Remove image</label>
+      </div>
+      {{end}}
+      <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/gif,image/webp" data-preview="#image-preview" {{if .Errors.image}}aria-invalid="true"{{end}}>
+      <img id="image-preview" class="image-preview" alt="Selected image preview" hidden>
+      {{with .Errors.image}}<p class="error">{{.}}</p>{{end}}
+    </div>
+
+    <div class="row">
+      <button type="submit" class="btn btn-primary">{{if .Prompt.ID}}Save changes{{else}}Create prompt{{end}}</button>
+      <a href="{{if .Prompt.ID}}/prompts/{{.Prompt.ID}}{{else}}/{{end}}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+</section>
+{{end}}

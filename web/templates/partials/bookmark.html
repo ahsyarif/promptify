@@ -1,0 +1,18 @@
+{{define "bookmark-count"}}<span id="bookmark-count" class="count">{{if .}}{{.}}{{end}}</span>{{end}}
+
+{{define "bookmark-btn"}}
+<form class="bookmark-form" method="post" action="/prompts/{{.ID}}/bookmark"
+      hx-post="/prompts/{{.ID}}/bookmark" hx-swap="outerHTML">
+  <button type="submit" class="bookmark{{if .Bookmarked}} is-saved{{end}}"
+          aria-pressed="{{.Bookmarked}}"
+          title="{{if .Bookmarked}}Remove from saved{{else}}Save prompt{{end}}">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 3.5h12a.5.5 0 0 1 .5.5v16.2a.3.3 0 0 1-.48.24L12 16.5l-6.02 3.94a.3.3 0 0 1-.48-.24V4a.5.5 0 0 1 .5-.5z"/></svg>
+    <span class="sr-only">{{if .Bookmarked}}Remove from saved{{else}}Save prompt{{end}}</span>
+  </button>
+</form>
+{{end}}
+
+{{define "bookmark-response"}}
+{{template "bookmark-btn" .Prompt}}
+<span id="bookmark-count" class="count" hx-swap-oob="true">{{if .BookmarkCount}}{{.BookmarkCount}}{{end}}</span>
+{{end}}

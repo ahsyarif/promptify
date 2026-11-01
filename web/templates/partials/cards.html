@@ -1,0 +1,40 @@
+{{define "card"}}
+<article class="card">
+  <a href="/prompts/{{.ID}}" class="card-media" tabindex="-1" aria-hidden="true">
+    {{if .ImagePath}}
+      <img src="{{imageURL .ImagePath}}" alt="" loading="lazy">
+    {{else}}
+      <span class="card-snippet">{{excerpt .Body 180}}</span>
+    {{end}}
+  </a>
+  <div class="card-body">
+    <div class="card-meta">
+      {{if .CategoryName}}<a href="/?category={{.CategorySlug}}" class="tag">{{.CategoryName}}</a>{{else}}<span class="tag tag-muted">Uncategorised</span>{{end}}
+      {{template "bookmark-btn" .}}
+    </div>
+    <h3 class="card-title"><a href="/prompts/{{.ID}}">{{.Title}}</a></h3>
+    {{if .Description}}<p class="card-text">{{excerpt .Description 140}}</p>{{end}}
+  </div>
+</article>
+{{end}}
+
+{{define "cards"}}
+{{range .Prompts}}{{template "card" .}}{{end}}
+{{if .HasMore}}
+<div class="load-more">
+  <a class="btn" href="{{.NextURL}}" hx-get="{{.NextURL}}" hx-target="closest .load-more" hx-swap="outerHTML">Load more</a>
+</div>
+{{end}}
+{{end}}
+
+{{define "results"}}
+{{if .Prompts}}
+<div class="grid">{{template "cards" .}}</div>
+{{else}}
+<div class="empty">
+  <h2>{{.EmptyTitle}}</h2>
+  <p>{{.EmptyText}}</p>
+  {{if and (not .Query) (not .Category) (ne .BasePath "/bookmarks")}}<a class="btn btn-primary" href="/prompts/new">New prompt</a>{{end}}
+</div>
+{{end}}
+{{end}}

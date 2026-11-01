@@ -1,0 +1,39 @@
+{{define "content"}}
+<article class="detail">
+  <a href="/" class="back">← Library</a>
+
+  <header class="detail-header">
+    <div>
+      {{if .Prompt.CategoryName}}<a class="tag" href="/?category={{.Prompt.CategorySlug}}">{{.Prompt.CategoryName}}</a>{{end}}
+      <h1>{{.Prompt.Title}}</h1>
+      {{if .Prompt.Description}}<p class="lead">{{.Prompt.Description}}</p>{{end}}
+    </div>
+    {{template "bookmark-btn" .Prompt}}
+  </header>
+
+  {{if .Prompt.ImagePath}}
+  <figure class="detail-image">
+    <img src="{{imageURL .Prompt.ImagePath}}" alt="Example for {{.Prompt.Title}}">
+  </figure>
+  {{end}}
+
+  <section class="prompt-box">
+    <div class="prompt-box-bar">
+      <span>Prompt</span>
+      <button type="button" class="btn btn-small" data-copy="#prompt-body">Copy</button>
+    </div>
+    <pre id="prompt-body">{{highlightVars .Prompt.Body}}</pre>
+  </section>
+
+  <footer class="detail-actions">
+    <span class="muted">Updated {{.Prompt.UpdatedAt.Format "Jan 2, 2006"}}</span>
+    <div class="row">
+      <a href="/prompts/{{.Prompt.ID}}/edit" class="btn btn-small">Edit</a>
+      <form method="post" action="/prompts/{{.Prompt.ID}}/delete"
+            hx-post="/prompts/{{.Prompt.ID}}/delete" hx-confirm="Delete “{{.Prompt.Title}}”? This cannot be undone.">
+        <button type="submit" class="btn btn-small btn-danger">Delete</button>
+      </form>
+    </div>
+  </footer>
+</article>
+{{end}}

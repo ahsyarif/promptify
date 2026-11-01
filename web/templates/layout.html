@@ -1,0 +1,31 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+  <title>{{.Title}} · Promptify</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/htmx.min.js" defer></script>
+  <script src="/static/js/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="/" class="brand">promptify<span>.</span></a>
+      <nav class="nav">
+        <a href="/" {{if eq .Nav "library"}}aria-current="page"{{end}}>Library</a>
+        <a href="/categories" {{if eq .Nav "categories"}}aria-current="page"{{end}}>Categories</a>
+        <a href="/bookmarks" {{if eq .Nav "bookmarks"}}aria-current="page"{{end}}>Saved {{template "bookmark-count" .BookmarkCount}}</a>
+        <a href="/prompts/new" class="btn btn-primary btn-small" {{if eq .Nav "new"}}aria-current="page"{{end}}>New prompt</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    {{block "content" .}}{{end}}
+  </main>
+  <footer class="site-footer container">
+    <span>Promptify — a minimalist prompt library</span>
+  </footer>
+</body>
+</html>{{end}}

@@ -1,0 +1,37 @@
+{{define "content"}}
+<section class="intro">
+  <h1>Categories</h1>
+  <p class="muted">Browse prompts by topic, or add a new category.</p>
+</section>
+
+<div class="category-layout">
+  <ul class="category-list">
+    {{range .Categories}}
+    <li>
+      <a href="/?category={{.Slug}}">
+        <span class="category-name">{{.Name}}</span>
+        {{if .Description}}<span class="muted">{{.Description}}</span>{{end}}
+      </a>
+      <span class="count-pill">{{.PromptCount}}</span>
+    </li>
+    {{else}}
+    <li class="muted">No categories yet.</li>
+    {{end}}
+  </ul>
+
+  <form class="stack card-plain" method="post" action="/categories">
+    <h2>New category</h2>
+    <div class="field">
+      <label for="name">Name</label>
+      <input id="name" name="name" value="{{.CategoryName}}" maxlength="50" required {{if .Errors.name}}aria-invalid="true"{{end}}>
+      {{with .Errors.name}}<p class="error">{{.}}</p>{{end}}
+    </div>
+    <div class="field">
+      <label for="cat-description">Description <span class="muted">optional</span></label>
+      <input id="cat-description" name="description" value="{{.CategoryDescription}}" maxlength="200" {{if .Errors.description}}aria-invalid="true"{{end}}>
+      {{with .Errors.description}}<p class="error">{{.}}</p>{{end}}
+    </div>
+    <button type="submit" class="btn btn-primary">Add category</button>
+  </form>
+</div>
+{{end}}
